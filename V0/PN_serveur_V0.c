@@ -7,9 +7,7 @@
 #include <netinet/in.h>  
 
 
-//
 #define MOT_SECRET "test"
-
 #define PORT 5000
 #define MAX_ERREURS 6
 #define TAILLE_MESSAGE 256

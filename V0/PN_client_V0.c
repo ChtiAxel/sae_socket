@@ -80,7 +80,6 @@ int main(int argc, char *argv[]) {
     
     // verifier les arguments (ip et port)
     if (argc != 3) {
-        printf("usage : %s <adresse_ip> <port>\n", argv[0]);
         printf("exemple : %s 127.0.0.1 5000\n", argv[0]);
         exit(1);
     }
