@@ -3,11 +3,24 @@
 #include <string.h>      
 #include <unistd.h>   
 #include <ctype.h>      
+#include <time.h>        
 #include <sys/socket.h>  
 #include <netinet/in.h>  
 
 
-#define MOT_SECRET "test"
+const char *LISTE_MOTS[] = {
+    "pokemon", "pikachu", "bulbizarre", "dracaufeu", "rondoudou",
+    "salameche", "carapuce", "mewtwo", "ronflex", "evoli",      
+    "minecraft", "fortnite", "terraria", "valorant", "overwatch",   
+    "avengers", "spiderman", "superman", "ironman", "captain",      
+    "starlord", "blackpanther", "deadpool", "wolverine", "magneto",  
+    "stranger", "netflix", "breaking", "squidgame", "peakyblinders",
+    "starwars", "skywalker", "chewbacca", "palpatine", "mandalorian"
+    "hogwarts", "hermione", "dumbledore", "voldemort", "gryffondor", 
+    "serpentard", "serdaigle", "poufsouffle", "poudlard", "quidditch",
+    "gandalf", "saroumane", "aragorn", "legolas", "godzilla"         
+};
+#define NB_MOTS 50
 
 #define PORT 5000
 #define MAX_ERREURS 6
@@ -30,6 +43,9 @@ void creer_liste_lettres(int lettres_utilisees[], char *liste) {
 
 int main() {
 
+    // initialiser le generateur de nombres aleatoires
+    srand(time(NULL));
+
     // on declare les sockets serveur et les deux joueurs
     int socket_serveur;   
     int socket_joueur1;
@@ -42,9 +58,9 @@ int main() {
     // buffer = zone memoire pour stocker les messages envoyes/recus
     char buffer[TAILLE_MESSAGE];
     
-    // le mot a deviner et sa longueur
-    const char *mot = MOT_SECRET;
-    int longueur_mot = strlen(mot);
+    // le mot a deviner (sera choisi aleatoirement pour chaque partie)
+    const char *mot;
+    int longueur_mot;
     
     // creation d'un socket pour le serveur, on utilise IPV4 et TCP
     socket_serveur = socket(AF_INET, SOCK_STREAM, 0);
@@ -82,8 +98,14 @@ int main() {
     // le serveur attend 2 clients, joue une partie et recommence
     while (1) {
         
+        // choisir un mot aleatoire pour cette partie
+        int index_mot = rand() % NB_MOTS;
+        mot = LISTE_MOTS[index_mot];
+        longueur_mot = strlen(mot);
+        printf("\nmot choisi : %s (%d lettres)\n", mot, longueur_mot);
+        
         // accept = on attend que le joueur 1 se connecte
-        printf("\nattente du joueur 1...\n");
+        printf("attente du joueur 1...\n");
         socket_joueur1 = accept(socket_serveur, (struct sockaddr*)&adresse, (socklen_t*)&taille_adresse);
         if (socket_joueur1 < 0) {
             perror("echec accept joueur 1");
@@ -182,20 +204,79 @@ int main() {
                 break;
             }
 
-            // on cherche la premiere lettre valide dans le message et on la met en minuscule
-            char lettre = 0;
-            for (int i = 0; buffer[i] != '\0'; i++) {
+            // on extrait le contenu du message (sans le \n)
+            char proposition[TAILLE_MESSAGE];
+            int len = 0;
+            for (int i = 0; buffer[i] != '\0' && buffer[i] != '\n'; i++) {
                 if (isalpha(buffer[i])) {
-                    lettre = tolower(buffer[i]);
-                    break;
+                    proposition[len++] = tolower(buffer[i]);
                 }
             }
+            proposition[len] = '\0';
 
-            // si ce n'est pas une lettre on ignore
-            if (lettre == 0) {
+            // si rien de valide, on ignore
+            if (len == 0) {
                 continue;
             }
 
+            // si le joueur propose un mot entier (plus d'une lettre)
+            if (len > 1) {
+                printf("joueur %d propose le mot : %s\n", tour, proposition);
+                
+                // on compare avec le mot secret (en minuscules)
+                char mot_minuscule[TAILLE_MESSAGE];
+                for (int i = 0; i < longueur_mot; i++) {
+                    mot_minuscule[i] = tolower(mot[i]);
+                }
+                mot_minuscule[longueur_mot] = '\0';
+                
+                // si le mot est correct
+                if (strcmp(proposition, mot_minuscule) == 0) {
+                    // on envoie victoire au joueur actif
+                    sprintf(buffer, "gagne_mot %s\n", mot);
+                    send(socket_actif, buffer, strlen(buffer), 0);
+                    
+                    // on envoie defaite a l'autre
+                    sprintf(buffer, "perdu_autre %s\n", mot);
+                    send(socket_autre, buffer, strlen(buffer), 0);
+                    
+                    printf("joueur %d gagne avec le mot complet !\n", tour);
+                    partie_terminee = 1;
+                }
+                // si le mot est faux
+                else {
+                    (*erreurs_actif)++;
+                    printf("joueur %d : mauvais mot ! erreurs : %d/%d\n", tour, *erreurs_actif, MAX_ERREURS);
+                    
+                    // si trop d'erreurs, le joueur perd
+                    if (*erreurs_actif >= MAX_ERREURS) {
+                        sprintf(buffer, "perdu_erreurs %s\n", mot);
+                        send(socket_actif, buffer, strlen(buffer), 0);
+                        printf("joueur %d elimine !\n", tour);
+                        
+                        sprintf(buffer, "gagne_erreurs %s\n", mot);
+                        send(socket_autre, buffer, strlen(buffer), 0);
+                        printf("joueur %d gagne par defaut !\n", (tour == 1) ? 2 : 1);
+                        
+                        partie_terminee = 1;
+                    }
+                    // sinon on continue
+                    else {
+                        creer_liste_lettres(lettres_utilisees, liste_lettres);
+                        sprintf(buffer, "non %s %d %s\n", mot_affiche, MAX_ERREURS - *erreurs_actif, liste_lettres);
+                        send(socket_actif, buffer, strlen(buffer), 0);
+                        
+                        sprintf(buffer, "tour %s %d %s\n", mot_affiche, MAX_ERREURS - *erreurs_autre, liste_lettres);
+                        send(socket_autre, buffer, strlen(buffer), 0);
+                        
+                        tour = (tour == 1) ? 2 : 1;
+                    }
+                }
+                continue;
+            }
+
+            // sinon c'est une seule lettre
+            char lettre = proposition[0];
             printf("joueur %d joue : %c\n", tour, lettre);
 
             // index_lettre = position dans le tableau (a=0, b=1, c=2, etc.)
@@ -207,7 +288,7 @@ int main() {
                 sprintf(buffer, "deja %s %d %s\n", mot_affiche, MAX_ERREURS - *erreurs_actif, liste_lettres);
                 send(socket_actif, buffer, strlen(buffer), 0);
                 printf("lettre deja utilisee\n");
-                continue;  // meme joueur rejoue
+                continue;
             }
 
             // on marque la lettre comme utilisee

@@ -13,66 +13,29 @@
 // fonction pour dessiner le pendu
 void dessiner_pendu(int erreurs) {
     printf("\n");
-
     switch(erreurs) {
         case 0:
-            printf(" ------\n");
-            printf(" |    |\n");
-            printf(" |\n");
-            printf(" |\n");
-            printf(" |\n");
-            printf(" |\n");
+            printf(" ------\n |    |\n |\n |\n |\n |\n");
             break;
         case 1:
-            printf(" ------\n");
-            printf(" |    |\n");
-            printf(" |    O\n");
-            printf(" |\n");
-            printf(" |\n");
-            printf(" |\n");
+            printf(" ------\n |    |\n |    O\n |\n |\n |\n");
             break;
         case 2:
-            printf(" ------\n");
-            printf(" |    |\n");
-            printf(" |    O\n");
-            printf(" |    |\n");
-            printf(" |\n");
-            printf(" |\n");
+            printf(" ------\n |    |\n |    O\n |    |\n |\n |\n");
             break;
         case 3:
-            printf(" ------\n");
-            printf(" |    |\n");
-            printf(" |    O\n");
-            printf(" |   /|\n");
-            printf(" |\n");
-            printf(" |\n");
+            printf(" ------\n |    |\n |    O\n |   /|\n |\n |\n");
             break;
         case 4:
-            printf(" ------\n");
-            printf(" |    |\n");
-            printf(" |    O\n");
-            printf(" |   /|\\\n");
-            printf(" |\n");
-            printf(" |\n");
+            printf(" ------\n |    |\n |    O\n |   /|\\\n |\n |\n");
             break;
         case 5:
-            printf(" ------\n");
-            printf(" |    |\n");
-            printf(" |    O\n");
-            printf(" |   /|\\\n");
-            printf(" |   /\n");
-            printf(" |\n");
+            printf(" ------\n |    |\n |    O\n |   /|\\\n |   /\n |\n");
             break;
         case 6:
-            printf(" ------\n");
-            printf(" |    |\n");
-            printf(" |    O\n");
-            printf(" |   /|\\\n");
-            printf(" |   / \\\n");
-            printf(" |\n");
+            printf(" ------\n |    |\n |    O\n |   /|\\\n |   / \\\n |\n");
             break;
     }
-
     printf("=========\n\n");
 }
 
@@ -93,6 +56,7 @@ int main(int argc, char *argv[]) {
     
     // verifier les arguments (ip et port)
     if (argc != 3) {
+        printf("usage : %s <adresse_ip> <port>\n", argv[0]);
         printf("exemple : %s 127.0.0.1 5000\n", argv[0]);
         exit(1);
     }
@@ -152,13 +116,13 @@ int main(int argc, char *argv[]) {
 
     // analyser le message : "attente X" ou "start X"
     if (sscanf(buffer, "attente %d", &longueur_mot) == 1) {
-        // je suis le joueur 1, je dois attendre
+        //  joueur 1 attendre
         printf("en attente d'un autre joueur...\n");
         printf("le mot contient %d lettres.\n\n", longueur_mot);
         mon_tour = 0;
     }
     else if (sscanf(buffer, "start %d", &longueur_mot) == 1) {
-        // je suis le joueur 2, je commence
+        // joueur 2 commence
         printf("la partie commence ! c'est votre tour.\n");
         printf("le mot contient %d lettres.\n\n", longueur_mot);
         mon_tour = 1;
@@ -186,7 +150,7 @@ int main(int argc, char *argv[]) {
             printf("mot : %s\n", mot_affiche);
             printf("erreurs restantes : %d\n", essais_restants);
             afficher_lettres(lettres_utilisees);
-            printf("\nentrez une lettre : ");
+            printf("\nentrez une lettre ou le mot complet : ");
             fflush(stdout);
 
             // lire la saisie de l'utilisateur
@@ -195,23 +159,24 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
-            // extraire la premiere lettre valide
-            char lettre = 0;
-            for (int i = 0; ligne[i] != '\0'; i++) {
+            // extraire toutes les lettres valides
+            char proposition[64];
+            int len = 0;
+            for (int i = 0; ligne[i] != '\0' && ligne[i] != '\n'; i++) {
                 if (isalpha(ligne[i])) {
-                    lettre = tolower(ligne[i]);
-                    break;
+                    proposition[len++] = tolower(ligne[i]);
                 }
             }
+            proposition[len] = '\0';
 
             // si pas de lettre valide, on recommence
-            if (lettre == 0) {
-                printf("veuillez entrer une lettre valide (a-z).\n\n");
+            if (len == 0) {
+                printf("veuillez entrer une lettre ou un mot valide.\n\n");
                 continue;
             }
 
-            // envoyer la lettre au serveur
-            sprintf(buffer, "%c\n", lettre);
+            // envoyer la proposition au serveur (lettre ou mot)
+            sprintf(buffer, "%s\n", proposition);
             send(socket_client, buffer, strlen(buffer), 0);
         }
         else {
